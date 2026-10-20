@@ -90,7 +90,11 @@ function safeDate(s: unknown): Date | null {
   try {
     return parseHaeDate(s);
   } catch {
-    return null;
+    // Some HAE exports (e.g. State of Mind) use ISO 8601 ("2024-02-06T22:00:00Z")
+    // instead of the "yyyy-MM-dd HH:mm:ss Z" form. Accept strict ISO as a fallback.
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.test(s.trim())) return null;
+    const d = new Date(s.trim());
+    return Number.isNaN(d.getTime()) ? null : d;
   }
 }
 
@@ -145,7 +149,9 @@ export function normalize(payload: HaePayload): NormalizeResult {
 
   for (const eventType of EVENT_TYPES) {
     for (const e of payload.data[eventType] as Record<string, unknown>[]) {
-      const date = safeDate(e.date);
+      // Event types (State of Mind, symptoms, ECG, heart rate notifications, ...)
+      // carry start/end rather than a single date; fall back to start.
+      const date = safeDate(e.date) ?? safeDate(e.start);
       if (!date) { skipped++; continue; }
       eventRows.push({
         eventType,
